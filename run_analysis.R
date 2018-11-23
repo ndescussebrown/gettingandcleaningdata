@@ -82,7 +82,12 @@ interimdataset2 <- interimdataset %>% select("uniqueid","activityname","activity
   str_replace_all("fbodyacc", "frequencybodyacceleration") %>% 
   str_replace_all("fbodygyro","frequencybodygyroscopeangularvelocity") %>% 
   str_replace_all("fbodybody","frequencybody") %>% 
-  str_replace_all("()","")  )
+  str_replace_all("std","standarddeviation") %>% 
+  str_replace_all("-","") %>%  
+  str_replace_all("[()]","")  )
+
+##colnames(interimdataset2) <- gsub("[()]", "", colnames(interimdataset2))
+
               
 
 ## ASSIGNMENT REQUIREMENT 5. From the data set in step 4, creates a second, independent tidy 
