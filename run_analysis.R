@@ -1,4 +1,5 @@
-run_analysis <- function() { ## 
+run_analysis <- function() { 
+## Load required packages 
   library(data.table)
   library(plyr)
   library(dplyr)
@@ -6,14 +7,14 @@ run_analysis <- function() { ##
   library(tibble)
   library(purrr)
   library(stringr)
+  library(dataMaid)
   
-## load all data necessary to the assignment  
+## Load and read all data necessary to the assignment  
 fileUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%
 20Dataset.zip"
 download.file(fileUrl,destfile="UCIHARDataset.zip")
 unzip("UCIHARDataset.zip")
 file.rename("UCI HAR Dataset","UCIHARDataset")
-##train <- read.delim("./UCIHARDataset/train/X_train", header = TRUE, sep = "\t", dec = ".")
 xtrain <- fread("./UCIHARDataset/train/X_train.txt")
 ytrain <- fread("./UCIHARDataset/train/Y_train.txt")
 subjecttrain <- fread("./UCIHARDataset/train/subject_train.txt")
@@ -24,9 +25,9 @@ features <- fread("./UCIHARDataset/features.txt")
 activitylabels <- fread("./UCIHARDataset/activity_labels.txt")
 
 
-## ASSIGNMENT REQUIREMENT 1. MERGED THE TRAINING AND THE TEST SETS TO CREATE ONE DATA SET
+## MERGE THE TRAINING AND THE TEST SETS TO CREATE ONE DATA SET
 
-#add uniqueid identifier to all datasets
+# Add uniqueid identifier to all datasets to relate them to each other before merging
 xtest <- cbind(c(1:length(xtest$V1)),xtest)
 ytest <- cbind(c(1:length(ytest$V1)),ytest)
 subjecttest <- cbind(c(1:length(subjecttest$V1)),subjecttest)
@@ -35,9 +36,9 @@ ytrain <- cbind(c(1:length(ytrain$V1)),ytrain)
 subjecttrain <- cbind(c(1:length(subjecttrain$V1)),subjecttrain)
 
 
-## ASSIGNMENT REQUIREMENT 4. APPROPRIATELY LABELS THE DATA SET WITH DESCRIPTIVE VARIABLE NAMES 
+## APPROPRIATELY LABELS THE DATA SET WITH DESCRIPTIVE VARIABLE NAMES 
 
-##add labels to the various datasets
+## Add labels to the various datasets
 names(xtest) <- c("uniqueid",t(features[,2]))
 names(ytest) <- c("uniqueid","activityid")
 names(xtrain) <- c("uniqueid",t(features[,2]))
@@ -45,32 +46,31 @@ names(ytrain) <- c("uniqueid","activityid")
 names(subjecttest) <- c("uniqueid","subjectid")
 names(subjecttrain) <- c("uniqueid","subjectid")
 
-##rename duplicate columns in xtest and xtrain before merging
+## Rename duplicate columns in xtest and xtrain before merging
 xtest <- set_tidy_names(xtest)
 xtrain <- set_tidy_names(xtrain)
 
-##merges the training and test datasets
-##xset <- merge(xtest,xtrain)
+## Merges the various training and test datasets into xset (acceleration and angular velocity data),
+## yset (activity type) and subjectset (identifier of the subject taking part) datasets 
 xset <- rbind(xtest,xtrain)
 yset <- rbind(ytest,ytrain)
 subjectset <- rbind(subjecttest,subjecttrain)
 
 
-#merges the xtest dataset with the ytest and the subjecttest dataset    
+## Merges the xset dataset with the yset and the subjectset dataset into a single dataset linking acceleration and angular
+## velocity experimental data to the subjects and the activity    
 mergelist <- list(xset,yset,subjectset)
 dataset <- join_all(mergelist)
 
-## ASSIGNMENT REQUIREMENT 3. USES DESCRIPTIVE ACTIVITY NAMES TO NAME THE ACTIVITIES IN...
-## THE DATA SET
+## USES DESCRIPTIVE ACTIVITY NAMES TO NAME THE ACTIVITIES IN THE DATA SET
 
-##add descriptive labels to the activitylabels dataset
+## Add descriptive labels to the activitylabels dataset
 names(activitylabels) <- c("activityid","activityname")
 
-#merges the test dataset with the activity labels dataset 
+## Merges the test dataset with the activity labels dataset 
 dataset <- join(dataset,activitylabels)
 
-## ASSIGNMENT REQUIREMENT 2. EXTRACTS ONLY THE MEASUREMENTS ON THE MEAN AND STANDARD... 
-## DEVIATION FOR EACH MEASUREMENT 
+## EXTRACTS ONLY THE MEASUREMENTS ON THE MEAN AND STANDARD DEVIATION FOR EACH MEASUREMENT 
 
 interimdataset <- set_tidy_names(dataset)
 
@@ -81,16 +81,15 @@ interimdataset2 <- interimdataset %>% select("uniqueid","activityname","activity
   %>% str_replace_all("tbodygyro","timebodygyroscopeangularvelocity") %>% 
   str_replace_all("fbodyacc", "frequencybodyacceleration") %>% 
   str_replace_all("fbodygyro","frequencybodygyroscopeangularvelocity") %>% 
-  str_replace_all("fbodybody","frequencybody") %>% 
+  str_replace_all("fbodybodyacc","frequencybodyacceleration") %>%
+  str_replace_all("fbodybodygyro","frequencybodygyroscopeangularvelocity") %>%
   str_replace_all("std","standarddeviation") %>% 
+  str_replace_all("mag","magnitude") %>% 
   str_replace_all("-","") %>%  
   str_replace_all("[()]","")  )
 
-##colnames(interimdataset2) <- gsub("[()]", "", colnames(interimdataset2))
 
-              
-
-## ASSIGNMENT REQUIREMENT 5. From the data set in step 4, creates a second, independent tidy 
+## From the data set in step 4, creates a second, independent tidy 
 ## data set with the average of each variable for each activity and each subject.
 
 tidydataset <- data.frame()
@@ -106,7 +105,148 @@ tidydataset <- data.frame()
  }
 tidydataset <- merge(activitylabels,tidydataset)
 tidydataset <- select(tidydataset,-activityid)
-##save file
 write.table(tidydataset,"tidydataset",sep="\t",row.names=FALSE)
+
+## ADD DESCRIPTION TO VARIABLES IN DATASET AND CREATE CODEBOOK
+
+attr(tidydataset$subjectid,"shortDescription") <- "Subject who carried out the experiment."
+attr(tidydataset$activityname,"shortDescription") <- "One of six activities performed by the
+  participants (WALKING, WALKING_UPSTAIRS, WALKING_DOWNSTAIRS, SITTING, STANDING, LAYING) 
+  wearing a smartphone (Samsung Galaxy S II) on the waist."
+attr(tidydataset$timebodyaccelerationmeanx,"shortDescription") <- "Normalised mean of the body acceleration
+  recorded by the accelerometer in the time domain for the x-axis."
+attr(tidydataset$timebodyaccelerationmeany,"shortDescription") <- "Normalised mean of the body acceleration
+  recorded by the accelerometer in the time domain for the y-axis."
+attr(tidydataset$timebodyaccelerationmeanz,"shortDescription") <- "Normalised mean of the body acceleration
+  recorded by the accelerometer in the time domain for the z-axis."
+attr(tidydataset$timegravityaccelerationmeanx,"shortDescription") <- "Normalised mean of the gravity
+  acceleration recorded by the accelerometer in the time domain for the x-axis."
+attr(tidydataset$timegravityaccelerationmeany,"shortDescription") <- "Normalised mean of the gravity
+  acceleration recorded by the accelerometer in the time domain for the y-axis."
+attr(tidydataset$timegravityaccelerationmeanz,"shortDescription") <- "Normalised mean of the gravity
+  acceleration recorded by the accelerometer in the time domain for the z-axis."
+attr(tidydataset$timebodyaccelerationjerkmeanx,"shortDescription") <- "Normalised mean of the jerk body
+  acceleration recorded by the accelerometer in the time domain for the x-axis."
+attr(tidydataset$timebodyaccelerationjerkmeany,"shortDescription") <- "Normalised mean of the jerk body
+  acceleration recorded by the accelerometer in the time domain for the y-axis."
+attr(tidydataset$timebodyaccelerationjerkmeanz,"shortDescription") <- "Normalised mean of the jerk body
+  acceleration recorded by the accelerometer in the time domain for the z-axis."
+attr(tidydataset$timebodygyroscopeangularvelocitymeanx,"shortDescription") <- "Normalised mean of the 
+  body angular velocity recorded by the gyroscope in the time domain for the x-axis."
+attr(tidydataset$timebodygyroscopeangularvelocitymeany,"shortDescription") <- "Normalised mean of the 
+  body angular velocity recorded by the gyroscope in the time domain for the y-axis."
+attr(tidydataset$timebodygyroscopeangularvelocitymeanz,"shortDescription") <- "Normalised mean of the 
+  body angular velocity recorded by the gyroscope in the time domain for the z-axis."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkmeanx,"shortDescription") <- "Normalised mean of the 
+  jerk body angular velocity recorded by the gyroscope in the time domain for the x-axis."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkmeany,"shortDescription") <- "Normalised mean of the 
+  jerk body angular velocity recorded by the gyroscope in the time domain for the y-axis."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkmeanz,"shortDescription") <- "Normalised mean of the 
+  jerk body angular velocity recorded by the gyroscope in the time domain for the z-axis."
+attr(tidydataset$timebodyaccelerationmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  magnitude of the body acceleration recorded by the accelerometer in the time domain."
+attr(tidydataset$timegravityaccelerationmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  magnitude of the gravity acceleration recorded by the accelerometer in the time domain."
+attr(tidydataset$timebodyaccelerationjerkmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  jerk magnitude of the body acceleration recorded by the accelerometer in the time domain."
+attr(tidydataset$timebodygyroscopeangularvelocitymagnitudemean,"shortDescription") <- "Normalised mean of the 
+  magnitude of the body angular velocity recorded by the gyroscope in the time domain."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  jerk magnitude of the body angular velocity recorded by the gyroscope in the time domain."
+attr(tidydataset$frequencybodyaccelerationmeanx,"shortDescription") <- "Normalised mean of the body acceleration
+  recorded by the accelerometer in the frequency domain for the x-axis."
+attr(tidydataset$frequencybodyaccelerationmeany,"shortDescription") <- "Normalised mean of the body acceleration
+  recorded by the accelerometer in the frequency domain for the y-axis."
+attr(tidydataset$frequencybodyaccelerationmeanz,"shortDescription") <- "Normalised mean of the body acceleration
+  recorded by the accelerometer in the frequency domain for the z-axis."
+attr(tidydataset$frequencybodyaccelerationjerkmeanx,"shortDescription") <- "Normalised mean of the jerk body acceleration
+  recorded by the accelerometer in the frequency domain for the x-axis."
+attr(tidydataset$frequencybodyaccelerationjerkmeany,"shortDescription") <- "Normalised mean of the jerk body acceleration
+recorded by the accelerometer in the frequency domain for the y-axis."
+attr(tidydataset$frequencybodyaccelerationjerkmeanz,"shortDescription") <- "Normalised mean of the jerk body acceleration
+recorded by the accelerometer in the frequency domain for the z-axis."
+attr(tidydataset$frequencybodygyroscopeangularvelocitymeanx,"shortDescription") <- "Normalised mean of the 
+  body angular velocity recorded by the gyroscope in the frequency domain for the x-axis."
+attr(tidydataset$frequencybodygyroscopeangularvelocitymeany,"shortDescription") <- "Normalised mean of the 
+  body angular velocity recorded by the gyroscope in the frequency domain for the y-axis."
+attr(tidydataset$frequencybodygyroscopeangularvelocitymeanz,"shortDescription") <- "Normalised mean of the 
+  body angular velocity recorded by the gyroscope in the frequency domain for the z-axis."
+attr(tidydataset$frequencybodyaccelerationmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  magnitude of the body acceleration recorded by the accelerometer in the frequency domain."
+attr(tidydataset$frequencybodyaccelerationjerkmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  jerk magnitude of the body acceleration recorded by the accelerometer in the frequency domain."
+attr(tidydataset$frequencybodygyroscopeangularvelocitymagnitudemean,"shortDescription") <- "Normalised mean of the 
+  magnitude of the body angular velocity recorded by the gyroscope in the frequency domain."
+attr(tidydataset$frequencybodygyroscopeangularvelocityjerkmagnitudemean,"shortDescription") <- "Normalised mean of the 
+  jerk magnitude of the body angular velocity recorded by the gyroscope in the frequency domain."
+
+attr(tidydataset$timebodyaccelerationstandarddeviationx,"shortDescription") <- "Standard deviation of the body acceleration
+  recorded by the accelerometer in the time domain for the x-axis."
+attr(tidydataset$timebodyaccelerationstandarddeviationy,"shortDescription") <- "Standard deviation of the body acceleration
+  recorded by the accelerometer in the time domain for the y-axis."
+attr(tidydataset$timebodyaccelerationstandarddeviationz,"shortDescription") <- "Standard deviation of the body acceleration
+  recorded by the accelerometer in the time domain for the z-axis."
+attr(tidydataset$timegravityaccelerationstandarddeviationx,"shortDescription") <- "Standard deviation of the gravity
+  acceleration recorded by the accelerometer in the time domain for the x-axis."
+attr(tidydataset$timegravityaccelerationstandarddeviationy,"shortDescription") <- "Standard deviation of the gravity
+  acceleration recorded by the accelerometer in the time domain for the y-axis."
+attr(tidydataset$timegravityaccelerationstandarddeviationz,"shortDescription") <- "Standard deviation of the gravity
+  acceleration recorded by the accelerometer in the time domain for the z-axis."
+attr(tidydataset$timebodyaccelerationjerkstandarddeviationx,"shortDescription") <- "Standard deviation of the jerk body
+  acceleration recorded by the accelerometer in the time domain for the x-axis."
+attr(tidydataset$timebodyaccelerationjerkstandarddeviationy,"shortDescription") <- "Standard deviation of the jerk body
+  acceleration recorded by the accelerometer in the time domain for the y-axis."
+attr(tidydataset$timebodyaccelerationjerkstandarddeviationz,"shortDescription") <- "Standard deviation of the jerk body
+  acceleration recorded by the accelerometer in the time domain for the z-axis."
+attr(tidydataset$timebodygyroscopeangularvelocitystandarddeviationx,"shortDescription") <- "Standard deviation of the 
+  body angular velocity recorded by the gyroscope in the time domain for the x-axis."
+attr(tidydataset$timebodygyroscopeangularvelocitystandarddeviationy,"shortDescription") <- "Standard deviation of the 
+  body angular velocity recorded by the gyroscope in the time domain for the y-axis."
+attr(tidydataset$timebodygyroscopeangularvelocitystandarddeviationz,"shortDescription") <- "Standard deviation of the 
+  body angular velocity recorded by the gyroscope in the time domain for the z-axis."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkstandarddeviationx,"shortDescription") <- "Standard deviation of the 
+  jerk body angular velocity recorded by the gyroscope in the time domain for the x-axis."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkstandarddeviationy,"shortDescription") <- "Standard deviation of the 
+  jerk body angular velocity recorded by the gyroscope in the time domain for the y-axis."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkstandarddeviationz,"shortDescription") <- "Standard deviation of the 
+  jerk body angular velocity recorded by the gyroscope in the time domain for the z-axis."
+attr(tidydataset$timebodyaccelerationmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  magnitude of the body acceleration recorded by the accelerometer in the time domain."
+attr(tidydataset$timegravityaccelerationmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  magnitude of the gravity acceleration recorded by the accelerometer in the time domain."
+attr(tidydataset$timebodyaccelerationjerkmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  jerk magnitude of the body acceleration recorded by the accelerometer in the time domain."
+attr(tidydataset$timebodygyroscopeangularvelocitymagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  magnitude of the body angular velocity recorded by the gyroscope in the time domain."
+attr(tidydataset$timebodygyroscopeangularvelocityjerkmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  jerk magnitude of the body angular velocity recorded by the gyroscope in the time domain."
+attr(tidydataset$frequencybodyaccelerationstandarddeviationx,"shortDescription") <- "Standard deviation of the body acceleration
+  recorded by the accelerometer in the frequency domain for the x-axis."
+attr(tidydataset$frequencybodyaccelerationstandarddeviationy,"shortDescription") <- "Standard deviation of the body acceleration
+  recorded by the accelerometer in the frequency domain for the y-axis."
+attr(tidydataset$frequencybodyaccelerationstandarddeviationz,"shortDescription") <- "Standard deviation of the body acceleration
+  recorded by the accelerometer in the frequency domain for the z-axis."
+attr(tidydataset$frequencybodyaccelerationjerkstandarddeviationx,"shortDescription") <- "Standard deviation of the jerk body acceleration
+  recorded by the accelerometer in the frequency domain for the x-axis."
+attr(tidydataset$frequencybodyaccelerationjerkstandarddeviationy,"shortDescription") <- "Standard deviation of the jerk body acceleration
+  recorded by the accelerometer in the frequency domain for the y-axis."
+attr(tidydataset$frequencybodyaccelerationjerkstandarddeviationz,"shortDescription") <- "Standard deviation of the jerk body acceleration
+  recorded by the accelerometer in the frequency domain for the z-axis."
+attr(tidydataset$frequencybodygyroscopeangularvelocitystandarddeviationx,"shortDescription") <- "Standard deviation of the 
+  body angular velocity recorded by the gyroscope in the frequency domain for the x-axis."
+attr(tidydataset$frequencybodygyroscopeangularvelocitystandarddeviationy,"shortDescription") <- "Standard deviation of the 
+  body angular velocity recorded by the gyroscope in the frequency domain for the y-axis."
+attr(tidydataset$frequencybodygyroscopeangularvelocitystandarddeviationz,"shortDescription") <- "Standard deviation of the 
+  body angular velocity recorded by the gyroscope in the frequency domain for the z-axis."
+attr(tidydataset$frequencybodyaccelerationmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  magnitude of the body acceleration recorded by the accelerometer in the frequency domain."
+attr(tidydataset$frequencybodyaccelerationjerkmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  jerk magnitude of the body acceleration recorded by the accelerometer in the frequency domain."
+attr(tidydataset$frequencybodygyroscopeangularvelocitymagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  magnitude of the body angular velocity recorded by the gyroscope in the frequency domain."
+attr(tidydataset$frequencybodygyroscopeangularvelocityjerkmagnitudestandarddeviation,"shortDescription") <- "Standard deviation of the 
+  jerk magnitude of the body angular velocity recorded by the gyroscope in the frequency domain."
+
+makeCodebook(tidydataset,replace=TRUE)
 
 }
